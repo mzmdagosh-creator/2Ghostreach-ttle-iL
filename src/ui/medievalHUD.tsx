@@ -1,9 +1,9 @@
 /**
  * Gothic Dark-Fantasy Medieval HUD, Fading Splash Screen, Asymmetrical Title Screen,
- * Parchment Story Modals, Dual Ending Choice, Mobile Touch Controls & F2 Debug Overlay
+ * Cinematic Subtitles Intro, Imported 2D Medieval UI Assets, Modals & F2 Debug Overlay
  */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { WEAPON_CATALOG } from '../engine/combat';
 import { EnemyEntity, PlayerState } from '../engine/physics';
 import { getAllSpriteStatuses, SPRITE_MANIFEST, SpriteKey } from '../engine/spriteLoader';
@@ -63,6 +63,30 @@ export interface MedievalHUDProps {
   onTouchInput: (action: 'left' | 'right' | 'up' | 'attack' | 'dash' | 'interact', pressed: boolean) => void;
 }
 
+const UI_ASSETS = {
+  hudPlate: './ui/hud_plate.png',
+  questScroll: './ui/quest_scroll.png',
+  weaponSlot: './ui/weapon_slot.png',
+  heartFull: './ui/heart_full.png',
+  heartEmpty: './ui/heart_empty.png',
+  crystalAmber: './ui/crystal_amber.png',
+  crystalEmerald: './ui/crystal_emerald.png',
+  crystalSapphire: './ui/crystal_sapphire.png',
+  iconOrb: './ui/icon_orb.png',
+  iconPitchfork: './ui/icon_pitchfork.png',
+  iconScythe: './ui/icon_scythe.png',
+  iconWand: './ui/icon_wand.png',
+  iconSunblade: './ui/icon_sunblade.png',
+} as const;
+
+const WEAPON_ICON_MAP: Record<number, string> = {
+  1: UI_ASSETS.iconOrb,
+  2: UI_ASSETS.iconPitchfork,
+  3: UI_ASSETS.iconScythe,
+  4: UI_ASSETS.iconWand,
+  5: UI_ASSETS.iconSunblade,
+};
+
 export const MedievalHUD: React.FC<MedievalHUDProps> = ({
   screen,
   splashOpacity,
@@ -94,6 +118,28 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
   onTouchInput,
 }) => {
   const lastActionTimeRef = useRef<number>(0);
+  const [uiLoadStatus, setUiLoadStatus] = useState<Record<string, 'loading' | 'loaded' | 'failed'>>(() => {
+    const initial: Record<string, 'loading' | 'loaded' | 'failed'> = {};
+    Object.values(UI_ASSETS).forEach((path) => {
+      initial[path] = 'loading';
+    });
+    return initial;
+  });
+
+  // Preload & verify all 13 ./ui/*.png assets for instant HUD rendering and F2 inspection
+  useEffect(() => {
+    Object.values(UI_ASSETS).forEach((path) => {
+      const img = new Image();
+      img.onload = () => {
+        setUiLoadStatus((prev) => ({ ...prev, [path]: 'loaded' }));
+      };
+      img.onerror = () => {
+        console.error(`[MedievalHUD] Failed to load UI asset: ${path}`);
+        setUiLoadStatus((prev) => ({ ...prev, [path]: 'failed' }));
+      };
+      img.src = path;
+    });
+  }, []);
 
   /**
    * Ensures buttons respond reliably across Desktop Mouse, Trackpad, Mobile Touch, and WebView
@@ -121,6 +167,8 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
 
   const currentCutsceneShot: CutsceneShot =
     INTRO_CUTSCENE_SHOTS[cutsceneIndex] || INTRO_CUTSCENE_SHOTS[0];
+
+  const activeWeaponInfo = WEAPON_CATALOG[player.activeWeapon];
 
   return (
     <div className="absolute inset-0 z-30 pointer-events-none select-none overflow-hidden text-[#e8dcc4]">
@@ -162,12 +210,35 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
       )}
 
       {/* ===================================================================
-          1. F2 SPRITE LOADER DEBUG OVERLAY
+          1. F2 SPRITE & UI ASSET LOADER DEBUG OVERLAY
       =================================================================== */}
       {showDebugF2 && (
-        <div className="pointer-events-auto absolute top-14 left-3 z-50 w-88 max-h-[75%] overflow-y-auto bg-[#0b0e17]/95 border border-amber-700/60 rounded p-2.5 shadow-2xl text-[11px] font-mono">
+        <div className="pointer-events-auto absolute top-14 left-3 z-50 w-96 max-h-[78%] overflow-y-auto bg-[#0b0e17]/95 border border-amber-700/60 rounded p-2.5 shadow-2xl text-[11px] font-mono">
           <div className="flex items-center justify-between border-b border-amber-800/50 pb-1 mb-1.5">
-            <span className="font-bold text-amber-300">SPRITE LOADER MANIFEST (F2)</span>
+            <span className="font-bold text-amber-300">HUD UI ASSETS (F2)</span>
+            <span className="text-slate-400">./ui/*.png</span>
+          </div>
+          <div className="space-y-0.5 mb-3">
+            {Object.entries(uiLoadStatus).map(([path, status]) => (
+              <div key={path} className="flex items-center justify-between py-0.5 border-b border-slate-800/70">
+                <span className="text-slate-200 truncate max-w-[230px]">{path}</span>
+                <span
+                  className={
+                    status === 'loaded'
+                      ? 'text-emerald-400 font-semibold'
+                      : status === 'failed'
+                      ? 'text-rose-400 font-semibold'
+                      : 'text-amber-400 font-semibold'
+                  }
+                >
+                  {status.toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between border-b border-amber-800/50 pb-1 mb-1.5">
+            <span className="font-bold text-amber-300">SPRITE LOADER MANIFEST</span>
             <span className="text-slate-400">./sprites/*.png</span>
           </div>
           <div className="space-y-0.5">
@@ -189,21 +260,18 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
           </div>
         </div>
       )}
-
       {/* ===================================================================
           2. ASYMMETRICAL GOTHIC TITLE SCREEN (INSIDE 16:9 LANDSCAPE FRAME)
       =================================================================== */}
       {screen === 'TITLE' && (
         <div className="pointer-events-auto absolute inset-0 z-40 flex flex-col justify-between p-5 sm:p-10 bg-gradient-to-r from-[#060811]/92 via-[#060811]/65 to-transparent overflow-y-auto">
-          {/* Top-Left Minimal Realm Inscription */}
           <div className="flex items-center justify-between gap-4">
             <div className="text-[11px] sm:text-xs tracking-widest uppercase text-amber-300/85 font-gothic">
               Chronicle of the Severed Envoy · Three Anchor Relics
             </div>
-            <div className="text-[11px] text-slate-400">Press F2 for Sprite Asset Inspector</div>
+            <div className="text-[11px] text-slate-400">Press F2 for Sprite &amp; UI Inspector</div>
           </div>
 
-          {/* Left-Aligned Gothic Title Lockup & CTAs over calm negative space */}
           <div className="max-w-lg my-auto py-2">
             <svg className="w-48 h-7 mb-2 text-amber-400/85" viewBox="0 0 260 40" fill="none">
               <path d="M4 20H95L110 8L130 32L150 8L165 20H256" stroke="currentColor" strokeWidth="1.8" />
@@ -217,7 +285,6 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
               Bound outside your mortal vessel by the Royal Arcanist’s curse, wield spectral steel, master the Soul-Reflect Parry, and break the three Crystal Seals of Castle Ghostreach.
             </p>
 
-            {/* Primary Action Buttons — Wired with reliable click + pointerup + touchend */}
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -244,7 +311,6 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
               </button>
             </div>
 
-            {/* Direct Zone / Weather Quick-Launch Bar */}
             <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-gothic text-amber-200/80">
               <span className="uppercase tracking-wider text-slate-400">Quick Enter Wing:</span>
               <button
@@ -271,187 +337,184 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
             </div>
           </div>
 
-          {/* Flat Single-Line Control Hint Footer */}
           <div className="text-[11px] sm:text-xs text-slate-300/80 tracking-wide font-medieval-body truncate">
-            A/D or Arrows Move · W/Up Float-Jump & Hover · Space/Click Attack & Parry · Shift Ghost Dash · E Enter Door · 1–5 Weapons
+            A/D or Arrows Move · W/Up Float-Jump &amp; Hover · Space/Click Attack &amp; Parry · Shift Ghost Dash · E Enter Door · 1–5 Weapons
           </div>
         </div>
       )}
 
       {/* ===================================================================
-          3. 5-SHOT INTRO CUTSCENE PARCHMENT SCROLL OVERLAY
+          3. 5-SHOT INTRO CUTSCENE — CINEMATIC LETTERBOX SUBTITLES ONLY
       =================================================================== */}
       {screen === 'CUTSCENE' && (
-        <div className="pointer-events-auto absolute inset-0 z-40 flex flex-col justify-between p-4 sm:p-8">
-          <div className="flex items-center justify-between gap-2">
-            <div className="px-3 py-1 bg-[#0c101d]/90 border border-amber-700/50 rounded text-[11px] sm:text-xs font-gothic tracking-widest text-amber-300 truncate">
-              PROLOGUE · SHOT {cutsceneIndex + 1} OF {INTRO_CUTSCENE_SHOTS.length} · {currentCutsceneShot.title}
-            </div>
-
+        <div
+          {...makeReliablePress(onAdvanceCutscene)}
+          className="pointer-events-auto absolute inset-0 z-40 flex flex-col justify-between cursor-pointer"
+        >
+          {/* Top Cinematic Letterbox Bar */}
+          <div className="w-full h-[10%] min-h-[38px] bg-black/95 flex items-center justify-end px-4 sm:px-6">
             <button
               type="button"
               {...makeReliablePress(onSkipCutscene)}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-b from-red-800 to-red-950 hover:from-red-700 hover:to-red-900 text-amber-100 border border-amber-500/60 rounded-full shadow-lg text-[11px] font-gothic font-bold tracking-widest cursor-pointer transition-transform active:scale-95 whitespace-nowrap shrink-0"
+              className="text-xs font-gothic tracking-widest uppercase text-amber-200/75 hover:text-amber-200 transition-colors cursor-pointer px-2 py-1"
             >
-              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-              SKIP PROLOGUE
+              Skip ▸
             </button>
           </div>
 
-          {/* Bottom Aged-Parchment Scroll & Portrait Medallion */}
-          <div
-            {...makeReliablePress(onAdvanceCutscene)}
-            className="mx-auto w-full max-w-3xl bg-gradient-to-b from-[#261e18]/95 to-[#17120e]/95 border-2 border-amber-600/75 rounded-lg p-3.5 sm:p-5 shadow-2xl cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#0e1320] border-2 border-amber-500/80 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
-                <img
-                  src={SPRITE_MANIFEST[currentCutsceneShot.portrait]}
-                  alt={currentCutsceneShot.speaker}
-                  className="w-16 h-16 object-contain"
-                />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-gothic text-xs font-bold tracking-wider uppercase text-amber-400 truncate">
-                    {currentCutsceneShot.speaker}
-                  </span>
-                  <span className="text-[11px] text-amber-200/70 font-gothic whitespace-nowrap shrink-0">
-                    Click / Space / Tap →
-                  </span>
-                </div>
-                <p className="mt-1.5 text-xs sm:text-base text-[#f5ebd6] font-medieval-body leading-relaxed">
-                  {currentCutsceneShot.dialogue}
-                </p>
-              </div>
+          {/* Bottom Cinematic Letterbox Bar + Clean Centered Subtitles */}
+          <div className="w-full pt-10 pb-4 sm:pb-6 px-6 sm:px-14 bg-gradient-to-t from-black via-black/90 to-transparent text-center">
+            <p
+              className="mx-auto max-w-3xl text-sm sm:text-lg md:text-xl text-[#f7eedc] font-medieval-body leading-relaxed"
+              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.98), 0 0 2px rgba(0,0,0,1)' }}
+            >
+              {currentCutsceneShot.speaker && (
+                <span className="italic text-amber-300 mr-2 font-semibold">
+                  {currentCutsceneShot.speaker}:
+                </span>
+              )}
+              {currentCutsceneShot.dialogue}
+            </p>
+            <div className="mt-1.5 text-[10px] font-gothic tracking-widest uppercase text-slate-400/70">
+              {cutsceneIndex + 1} / {INTRO_CUTSCENE_SHOTS.length} · Tap or Press Space
             </div>
           </div>
         </div>
       )}
 
       {/* ===================================================================
-          4. ACTIVE GAMEPLAY HUD (INSIDE 16:9 STAGE)
+          4. ACTIVE GAMEPLAY HUD (IMPORTED 2D MEDIEVAL PNG ASSETS)
       =================================================================== */}
       {(screen === 'PLAYING' || screen === 'STORY_MODAL' || screen === 'FINALE_CHOICE') && (
         <>
-          {/* TOP-LEFT: Wrought-Iron Health Hearts, Ghost Dash Cooldown & Relic Slots */}
-          <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
-            <div className="pointer-events-auto flex items-center gap-2.5 px-3 py-1.5 bg-[#0c101b]/90 border border-amber-700/60 rounded shadow-lg">
-              {/* Health Hearts */}
-              <div className="flex items-center gap-1">
+          {/* TOP-LEFT: Wrought-Iron Crest Plate, Ruby Hearts & Ghost Dash Groove */}
+          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-20 flex flex-col gap-1">
+            <div className="relative w-[245px] sm:w-[300px] aspect-[2.35/1] drop-shadow-[0_4px_10px_rgba(0,0,0,0.85)]">
+              <img
+                src={UI_ASSETS.hudPlate}
+                alt="Health & Dash Frame"
+                className="w-full h-full object-contain pointer-events-none"
+              />
+
+              {/* Ruby Hearts Row inside upper crest plate */}
+              <div className="absolute left-[13%] right-[13%] top-[34%] h-[30%] flex items-center justify-center gap-1">
                 {Array.from({ length: player.maxHp }).map((_, idx) => {
                   const filled = idx < player.hp;
                   return (
-                    <svg
+                    <img
                       key={idx}
-                      className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${
-                        filled ? 'text-rose-500 scale-100' : 'text-slate-700 scale-90'
+                      src={filled ? UI_ASSETS.heartFull : UI_ASSETS.heartEmpty}
+                      alt={filled ? 'Full Heart' : 'Empty Heart'}
+                      className={`w-5 h-5 sm:w-6 sm:h-6 object-contain transition-transform ${
+                        filled
+                          ? 'scale-100 drop-shadow-[0_0_6px_rgba(244,63,94,0.85)]'
+                          : 'scale-90 opacity-85'
                       }`}
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
+                    />
                   );
                 })}
               </div>
 
-              <span className="text-[11px] font-mono tabular-nums text-amber-200/90 border-l border-slate-700 pl-2">
-                {player.hp}/{player.maxHp}
-              </span>
-
-              {/* Ghost Dash Cooldown Gauge */}
-              <div className="flex items-center gap-1.5 border-l border-slate-700 pl-2">
-                <span className="text-[10px] font-gothic uppercase tracking-wider text-sky-300">
-                  Dash
-                </span>
-                <div className="w-12 sm:w-14 h-2 bg-slate-800 rounded-sm overflow-hidden border border-sky-500/40">
-                  <div
-                    className="h-full bg-sky-400 transition-none"
-                    style={{ width: `${Math.round(dashReadyRatio * 100)}%` }}
-                  />
-                </div>
+              {/* Animated Cyan Ghost Dash Bar inside lower plate groove */}
+              <div className="absolute left-[11%] right-[11%] bottom-[8.5%] h-[10.5%] bg-[#070b14]/90 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-sky-500 via-cyan-300 to-sky-200 transition-none shadow-[0_0_8px_#38bdf8]"
+                  style={{ width: `${Math.round(dashReadyRatio * 100)}%` }}
+                />
               </div>
-
-              {/* Parry Empowered Indicator */}
-              {player.parryEmpowerTimer > 0 && (
-                <span className="text-[10px] font-gothic font-bold text-amber-300 animate-pulse">
-                  ★ 2X CRIT
-                </span>
-              )}
             </div>
 
-            {/* Active Relics Row */}
-            {player.relics.length > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-[#0c101b]/80 border border-amber-800/40 rounded text-[11px] text-emerald-300">
-                <span>Relics:</span>
-                {player.relics.includes('wind_stride_charm') && (
-                  <span>Wind-Stride Charm</span>
-                )}
-                {player.relics.includes('wind_stride_charm') &&
-                  player.relics.includes('golden_heart_vessel') && <span>·</span>}
-                {player.relics.includes('golden_heart_vessel') && (
-                  <span>Golden Heart Vessel</span>
-                )}
-              </div>
-            )}
+            {/* Parry Empower & Active Relics Row */}
+            <div className="flex flex-wrap items-center gap-1.5 pl-2">
+              {player.parryEmpowerTimer > 0 && (
+                <span className="px-2 py-0.5 bg-amber-950/90 border border-amber-400/80 rounded text-[10px] font-gothic font-bold text-amber-300 animate-pulse shadow">
+                  ★ 2X CRIT READY
+                </span>
+              )}
+              {player.relics.length > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-[#0c101b]/85 border border-amber-800/50 rounded text-[10px] font-gothic text-emerald-300">
+                  {player.relics.includes('wind_stride_charm') && <span>Wind-Stride Charm</span>}
+                  {player.relics.includes('wind_stride_charm') &&
+                    player.relics.includes('golden_heart_vessel') && <span>·</span>}
+                  {player.relics.includes('golden_heart_vessel') && <span>Golden Heart Vessel</span>}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* TOP-RIGHT: Parchment Quest Scroll, 3-Crystal Seal Tracker & Stage Warp */}
-          <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
-            <div className="pointer-events-auto flex items-center gap-2.5 px-3 py-1.5 bg-[#191512]/90 border border-amber-700/65 rounded shadow-lg">
-              {/* 3 Crystal Sockets (Amber, Emerald, Sapphire) */}
-              <div className="flex items-center gap-2 pr-2 border-r border-amber-800/50">
-                <span className="text-[10px] font-gothic uppercase tracking-wider text-amber-200/80 hidden sm:inline">
-                  Seals:
-                </span>
-                <div
+          {/* TOP-RIGHT: Parchment Quest Scroll Banner, 3 Crystal Seals & Utility Bar */}
+          <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex flex-col items-end gap-1">
+            {/* Torn-Edge Parchment Scroll with Dark-Ink Objective Text */}
+            <div className="relative w-[250px] sm:w-[310px] aspect-[2.25/1] drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
+              <img
+                src={UI_ASSETS.questScroll}
+                alt="Quest Scroll"
+                className="w-full h-full object-contain pointer-events-none"
+              />
+              <div className="absolute inset-0 pl-[23%] pr-[12%] py-[13%] flex flex-col justify-center overflow-hidden">
+                <div className="text-[10px] sm:text-[11px] font-gothic font-bold text-[#3b1c14] leading-tight truncate">
+                  {stageTitle}
+                </div>
+                <div className="mt-0.5 text-[9px] sm:text-[10px] font-medieval-body font-semibold text-[#2a1d12] leading-snug line-clamp-2">
+                  {questObjective}
+                </div>
+              </div>
+            </div>
+
+            {/* 3 Crystal Seals + Quick Stage Select + Help/SFX */}
+            <div className="pointer-events-auto flex items-center gap-2 px-2.5 py-1 bg-[#120f0d]/90 border border-amber-800/60 rounded shadow-lg">
+              <div className="flex items-center gap-1.5 pr-2 border-r border-amber-800/50">
+                <img
+                  src={UI_ASSETS.crystalAmber}
+                  alt="Amber Seal"
                   title="Amber Seal (Wing I - Farmland)"
-                  className={`w-3.5 h-3.5 rotate-45 border ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 object-contain transition-all ${
                     player.crystals.amber
-                      ? 'bg-amber-400 border-white shadow-[0_0_8px_#f59e0b]'
-                      : 'bg-slate-800 border-amber-600/50'
+                      ? 'opacity-100 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)] scale-105'
+                      : 'opacity-30 grayscale'
                   }`}
                 />
-                <div
+                <img
+                  src={UI_ASSETS.crystalEmerald}
+                  alt="Emerald Seal"
                   title="Emerald Seal (Wing II - Whispering Grove)"
-                  className={`w-3.5 h-3.5 rotate-45 border ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 object-contain transition-all ${
                     player.crystals.emerald
-                      ? 'bg-emerald-400 border-white shadow-[0_0_8px_#10b981]'
-                      : 'bg-slate-800 border-emerald-600/50'
+                      ? 'opacity-100 drop-shadow-[0_0_8px_rgba(16,185,129,0.95)] scale-105'
+                      : 'opacity-30 grayscale'
                   }`}
                 />
-                <div
+                <img
+                  src={UI_ASSETS.crystalSapphire}
+                  alt="Sapphire Seal"
                   title="Sapphire Seal (Wing III - Obsidian Foundry)"
-                  className={`w-3.5 h-3.5 rotate-45 border ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 object-contain transition-all ${
                     player.crystals.sapphire
-                      ? 'bg-blue-400 border-white shadow-[0_0_8px_#3b82f6]'
-                      : 'bg-slate-800 border-blue-600/50'
+                      ? 'opacity-100 drop-shadow-[0_0_8px_rgba(59,130,246,0.95)] scale-105'
+                      : 'opacity-30 grayscale'
                   }`}
                 />
               </div>
 
-              {/* Quick Stage / Wing Travel Select */}
               <select
                 aria-label="Realm Stage Travel"
                 value={stageId}
                 onChange={(e) => onWarpStage(e.target.value)}
-                className="bg-[#0d111c] text-amber-200 text-[11px] font-gothic border border-amber-700/60 rounded px-1.5 py-0.5 cursor-pointer"
+                className="bg-[#0d111c] text-amber-200 text-[10px] sm:text-[11px] font-gothic border border-amber-700/60 rounded px-1.5 py-0.5 cursor-pointer max-w-[130px] sm:max-w-none"
               >
                 <option value="sanctuary">Castle Sanctuary Hub</option>
-                <option value="stage_1_1">Wing 1-1: The Boar Raid (Rain)</option>
-                <option value="stage_1_2">Wing 1-2: Orchard Ambush (Rain)</option>
-                <option value="stage_1_3">Wing 1-3: Barn Alpha Boss (Rain)</option>
-                <option value="stage_2_1">Wing II: Whispering Grove (Mist)</option>
-                <option value="stage_3_1">Wing III: Obsidian Foundry (Embers)</option>
-                <option value="stage_4_1">Grand Gate: Wicked Witch Finale</option>
+                <option value="stage_1_1">Wing 1-1: The Boar Raid</option>
+                <option value="stage_1_2">Wing 1-2: Orchard Ambush</option>
+                <option value="stage_1_3">Wing 1-3: Barn Alpha Boss</option>
+                <option value="stage_2_1">Wing II: Whispering Grove</option>
+                <option value="stage_3_1">Wing III: Obsidian Foundry</option>
+                <option value="stage_4_1">Grand Gate: Wicked Witch</option>
               </select>
 
               <button
                 type="button"
                 {...makeReliablePress(onOpenHowToPlay)}
-                className="px-2 py-0.5 bg-[#0d111c] hover:bg-slate-800 text-amber-200 text-[11px] font-gothic border border-amber-700/50 rounded cursor-pointer whitespace-nowrap shrink-0"
+                className="px-2 py-0.5 bg-[#0d111c] hover:bg-slate-800 text-amber-200 text-[10px] sm:text-[11px] font-gothic border border-amber-700/50 rounded cursor-pointer whitespace-nowrap shrink-0"
               >
                 Help
               </button>
@@ -459,16 +522,10 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
               <button
                 type="button"
                 {...makeReliablePress(onToggleSound)}
-                className="px-2 py-0.5 bg-[#0d111c] hover:bg-slate-800 text-slate-300 text-[11px] font-gothic border border-slate-700 rounded cursor-pointer whitespace-nowrap shrink-0"
+                className="px-2 py-0.5 bg-[#0d111c] hover:bg-slate-800 text-slate-300 text-[10px] sm:text-[11px] font-gothic border border-slate-700 rounded cursor-pointer whitespace-nowrap shrink-0"
               >
                 {soundEnabled ? 'SFX' : 'MUTE'}
               </button>
-            </div>
-
-            {/* Quest Objective Parchment Ribbon */}
-            <div className="px-3 py-1 bg-[#1b1612]/85 border border-amber-700/45 rounded text-right max-w-md">
-              <div className="text-[11px] font-gothic font-bold text-amber-300 truncate">{stageTitle}</div>
-              <div className="text-[10px] text-amber-100/80 truncate">{questObjective}</div>
             </div>
           </div>
 
@@ -513,39 +570,62 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
 
           {/* INTERACTION PROMPT ABOVE DOOR / NPC */}
           {nearbyPrompt && screen === 'PLAYING' && (
-            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 px-4 py-1.5 bg-[#1a1510]/95 border border-amber-500/80 rounded shadow-lg text-xs font-gothic text-amber-200 tracking-wider whitespace-nowrap">
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 px-4 py-1.5 bg-[#1a1510]/95 border border-amber-500/80 rounded shadow-lg text-xs font-gothic text-amber-200 tracking-wider whitespace-nowrap">
               {nearbyPrompt}
             </div>
           )}
 
-          {/* BOTTOM-CENTER: BRASS WEAPON HOTBAR (1-5) */}
-          <div className="pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1.5 bg-[#121521]/90 border border-amber-700/65 rounded-lg shadow-xl">
-            {[1, 2, 3, 4, 5].map((id) => {
-              const w = WEAPON_CATALOG[id];
-              const unlocked = player.unlockedWeapons.includes(id);
-              const active = player.activeWeapon === id;
-              return (
-                <button
-                  type="button"
-                  key={id}
-                  {...makeReliablePress(() => unlocked && onSelectWeapon(id))}
-                  disabled={!unlocked}
-                  title={unlocked ? `${w.name}: ${w.description}` : 'Locked Relic Weapon'}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] font-gothic transition-all whitespace-nowrap shrink-0 ${
-                    active
-                      ? 'bg-amber-900/80 border-amber-400 text-amber-100 shadow-[0_0_10px_rgba(245,158,11,0.45)]'
-                      : unlocked
-                      ? 'bg-[#1a2030] border-slate-600 text-slate-200 hover:border-amber-500/60 cursor-pointer'
-                      : 'bg-[#0b0e17] border-slate-800 text-slate-600 cursor-not-allowed'
-                  }`}
-                >
-                  <span className="font-mono font-bold text-amber-400">[{id}]</span>
-                  <span className="hidden md:inline">{unlocked ? w.name : 'Locked'}</span>
-                </button>
-              );
-            })}
+          {/* BOTTOM-CENTER: IMPORTED GOTHIC WEAPON HOTBAR (1-5) */}
+          <div className="pointer-events-auto absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
+            {activeWeaponInfo && (
+              <div
+                className="text-[10px] sm:text-[11px] font-gothic tracking-widest uppercase text-amber-200/90"
+                style={{ textShadow: '0 1px 4px rgba(0,0,0,0.95)' }}
+              >
+                {activeWeaponInfo.name}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {[1, 2, 3, 4, 5].map((id) => {
+                const w = WEAPON_CATALOG[id];
+                const unlocked = player.unlockedWeapons.includes(id);
+                const active = player.activeWeapon === id;
+                const iconSrc = WEAPON_ICON_MAP[id];
+                return (
+                  <button
+                    type="button"
+                    key={id}
+                    {...makeReliablePress(() => unlocked && onSelectWeapon(id))}
+                    disabled={!unlocked}
+                    title={unlocked ? `${w.name}: ${w.description}` : 'Locked Relic Weapon'}
+                    className={`relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center transition-transform ${
+                      active
+                        ? 'scale-110 drop-shadow-[0_0_12px_rgba(251,191,36,0.95)] z-10'
+                        : unlocked
+                        ? 'opacity-90 hover:opacity-100 hover:scale-105 cursor-pointer drop-shadow-[0_3px_6px_rgba(0,0,0,0.85)]'
+                        : 'opacity-40 grayscale cursor-not-allowed'
+                    }`}
+                  >
+                    <img
+                      src={UI_ASSETS.weaponSlot}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    />
+                    <img
+                      src={iconSrc}
+                      alt={w.name}
+                      className={`relative z-10 w-7 h-7 sm:w-9 sm:h-9 object-contain pointer-events-none ${
+                        active ? 'drop-shadow-[0_0_6px_rgba(255,244,214,0.8)]' : ''
+                      }`}
+                    />
+                    <span className="absolute bottom-1 right-1.5 z-20 text-[9px] font-mono font-bold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">
+                      {id}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
           {/* =================================================================
               MOBILE TOUCH CONTROLS (Engraved Bronze D-Pad & Action Medallions)
           ================================================================= */}
@@ -704,7 +784,7 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
               The Grand Sanctum Threshold · Final Decision
             </div>
             <h2 className="mt-1.5 font-gothic text-xl sm:text-2xl font-bold text-[#f7eedc]">
-              The Mortal Vessel & The Abyssal Remnant
+              The Mortal Vessel &amp; The Abyssal Remnant
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-slate-300 font-medieval-body leading-relaxed">
               Seraphina lies defeated, and the tri-crystal cage surrounding your physical body shatters. Yet beneath the throne, the ancient Abyssal Shadow stirs. Choose your destiny:
@@ -749,7 +829,7 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
           <div className="w-full max-w-xl bg-gradient-to-b from-[#261e18] to-[#14100d] border-2 border-amber-600/80 rounded-lg p-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-amber-700/50 pb-2 mb-3">
               <h2 className="font-gothic text-base sm:text-lg font-bold text-amber-300">
-                TOME OF COMBAT & REALM LORE
+                TOME OF COMBAT &amp; REALM LORE
               </h2>
               <button
                 type="button"
@@ -763,13 +843,13 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-medieval-body">
               <div className="p-3 bg-[#120e0b]/80 border border-amber-800/40 rounded">
                 <div className="font-gothic text-xs font-bold text-amber-400 uppercase mb-1.5">
-                  Movement & Ghost Dash
+                  Movement &amp; Ghost Dash
                 </div>
                 <ul className="space-y-1 text-slate-200">
                   <li>• <b>A / D or Left / Right:</b> Move across gauntlets</li>
                   <li>• <b>W / Up Arrow:</b> Float-Jump (hold while falling to Hover)</li>
-                  <li>• <b>Shift:</b> Ghost Dash through enemies & hazards (1.2s cooldown)</li>
-                  <li>• <b>E:</b> Enter Wing Doors, claim Shrines & talk to Spirits</li>
+                  <li>• <b>Shift:</b> Ghost Dash through enemies &amp; hazards (1.2s cooldown)</li>
+                  <li>• <b>E:</b> Enter Wing Doors, claim Shrines &amp; talk to Spirits</li>
                 </ul>
               </div>
 
@@ -778,8 +858,8 @@ export const MedievalHUD: React.FC<MedievalHUDProps> = ({
                   Skill Parry / Soul-Reflect
                 </div>
                 <ul className="space-y-1 text-slate-200">
-                  <li>• <b>Space or Left-Click:</b> Lunge & swing active weapon</li>
-                  <li>• <b>Golden Parry:</b> Tap Attack right as an enemy rears back with a red-gold flash to stun for 1.6s & deal <b>2x CRIT</b>!</li>
+                  <li>• <b>Space or Left-Click:</b> Lunge &amp; swing active weapon</li>
+                  <li>• <b>Golden Parry:</b> Tap Attack right as an enemy rears back with a red-gold flash to stun for 1.6s &amp; deal <b>2x CRIT</b>!</li>
                   <li>• <b>Soul-Reflect:</b> Strike incoming enemy orbs to reflect them back!</li>
                   <li>• <b>Keys 1–5:</b> Switch unlocked spectral weapons</li>
                 </ul>
