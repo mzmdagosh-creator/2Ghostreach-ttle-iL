@@ -1,0 +1,6 @@
+{
+  "name": "Little Ghostreach",
+  "description": "A hand-painted gothic dark-fantasy 2D action side-scroller RPG inspired by Ender Lilies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

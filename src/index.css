@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body, #root {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #09080f;
+    color: #e8dcc4;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", Georgia, serif;
+  }
+}
+
+.font-gothic {
+  font-family: "Cinzel", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  letter-spacing: 0.08em;
+}
+
+.font-medieval-body {
+  font-family: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
